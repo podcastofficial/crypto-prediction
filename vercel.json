@@ -1,5 +1,1 @@
-{
-  "functions": {
-    "api/cron.js": { "maxDuration": 30 }
-  }
-}
+{}
