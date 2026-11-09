@@ -151,15 +151,18 @@ function Arena({ state, srv, reload }) {
   const [msg, setMsg] = useState('');
 
   const rs = state.rounds.filter((r) => r.symbol === coin && r.duration_sec === dur);
-  const round = rs.find((r) => r.status === 'open') || rs.find((r) => r.status === 'locked') || rs.find((r) => r.status === 'scheduled');
+  const t = (x) => Date.parse(x);
+  const round = rs.find((r) => ['open', 'scheduled'].includes(r.status) && t(r.open_at) <= srv && srv < t(r.lock_at));
+  const next = rs.filter((r) => r.status === 'scheduled' && t(r.open_at) > srv).sort((a, b) => t(a.open_at) - t(b.open_at))[0];
+  const waiting = rs.filter((r) => r.status === 'locked').sort((a, b) => t(a.close_at) - t(b.close_at))[0];
   const mk = state.markets.find((m) => m.symbol === coin);
   const active = state.rounds.filter((r) => r.my_direction && ['open', 'locked'].includes(r.status));
 
   let label = 'No round yet', target = null, canPredict = false;
   if (round) {
-    if (round.status === 'open' && srv < Date.parse(round.lock_at)) { label = 'Forecasts close in'; target = round.lock_at; canPredict = !round.my_direction; }
-    else if (round.status === 'scheduled') { label = 'Round opens in'; target = round.open_at; }
-    else { label = 'Result in'; target = round.close_at; }
+    label = 'Forecasts close in'; target = round.lock_at; canPredict = !round.my_direction;
+  } else if (next) {
+    label = 'Next round opens in'; target = next.open_at;
   }
 
   async function submit() {
@@ -193,14 +196,14 @@ function Arena({ state, srv, reload }) {
         <b className="mid">${price(mk?.price)}</b>
         <span className="lbl">{label}</span>
         <b className="timer">{target ? clock((Date.parse(target) - srv) / 1000) : '--:--'}</b>
-        {round?.open_price && <span className="muted">Reference price ${price(round.open_price)}</span>}
-        {round?.status === 'open' && !round.open_price && <span className="muted">Reference price is set when forecasts close.</span>}
+        {round && <span className="muted">Reference price is set when forecasts close.</span>}
         {round?.my_direction && <span className="mine">Your forecast: {round.my_direction}</span>}
         <div className="split">
           <button className="upb" disabled={!canPredict} onClick={() => setConfirm({ round, dir: 'UP' })}>UP</button>
           <button className="downb" disabled={!canPredict} onClick={() => setConfirm({ round, dir: 'DOWN' })}>DOWN</button>
         </div>
         {msg && <p className="muted center">{msg}</p>}
+        {waiting && <span className="muted small">Previous round: result in {clock((t(waiting.close_at) - srv) / 1000)} · reference ${price(waiting.open_price)}</span>}
       </section>
 
       <h2>Your active forecasts</h2>
@@ -209,7 +212,7 @@ function Arena({ state, srv, reload }) {
         {active.map((r) => (
           <div className="item" key={r.id}>
             <div><b>{r.symbol}</b> <span className={r.my_direction === 'UP' ? 'up' : 'down'}>{r.my_direction}</span><span className="muted"> · {durLabel(r.duration_sec)}</span></div>
-            <span className="muted">{r.status === 'open' ? 'Open' : 'Locked'} · {clock((Date.parse(r.close_at) - srv) / 1000)}</span>
+            <span className="muted">{r.status === 'locked' ? `Ref $${price(r.open_price)} · ` : 'Waiting for lock · '}{clock((Date.parse(r.close_at) - srv) / 1000)}</span>
           </div>
         ))}
       </section>
