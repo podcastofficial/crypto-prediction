@@ -43,7 +43,7 @@ async function state(req, res, user) {
        join coins c on c.id=r.coin_id
        left join market_prices op on op.id=r.open_snapshot_id
        left join predictions p on p.round_id=r.id and p.user_id=$1
-       where r.status in ('open','locked') or (r.status='scheduled' and r.open_at<now()+interval '1 hour')
+       where r.status in ('open','locked') or (r.status='scheduled' and r.open_at<now()+interval '20 minutes')
        order by r.close_at`, [user.id]),
     q(`select p.id, p.direction, p.status, c.symbol, r.duration_sec, pr.open_price, pr.close_price, p.accepted_at
        from predictions p join prediction_rounds r on r.id=p.round_id join coins c on c.id=r.coin_id
@@ -92,7 +92,7 @@ async function predict(req, res, user) {
   const ins = await q(
     `insert into predictions(user_id, round_id, direction)
      select $1, r.id, $3 from prediction_rounds r
-     where r.id=$2 and r.status='open' and now() < r.lock_at
+     where r.id=$2 and r.status in ('open','scheduled') and now() >= r.open_at and now() < r.lock_at
        and exists (select 1 from users u where u.id=$1 and u.status='active')
      on conflict (user_id, round_id) do nothing
      returning id, accepted_at`,
