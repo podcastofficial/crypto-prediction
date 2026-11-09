@@ -104,6 +104,35 @@ async function predict(req, res, user) {
   return res.status(409).json({ error: 'This round is closed for new forecasts.' });
 }
 
+async function leaderboard(req, res, user) {
+  const period = req.query.period === 'day' ? 'day' : 'all';
+  const { rows } = await q(
+    `with s as (
+       select l.user_id, sum(l.amount)::int as score, count(*)::int as wins
+       from points_ledger l
+       where l.points_type='AP' and l.reason='correct_forecast'
+         and ($1::text='all' or l.created_at >= (date_trunc('day', now() at time zone 'utc') at time zone 'utc'))
+       group by l.user_id
+     ), r as (
+       select s.user_id, s.score, s.wins, u.first_name, u.username,
+              rank() over (order by s.score desc, s.wins desc) as pos
+       from s join users u on u.id=s.user_id
+     )
+     select * from r where pos<=20 or user_id=$2 order by pos, user_id limit 30`,
+    [period, user.id]
+  );
+  res.status(200).json({
+    period,
+    items: rows.map((r) => ({
+      pos: Number(r.pos),
+      name: r.first_name || r.username || 'Player',
+      score: r.score,
+      wins: r.wins,
+      me: r.user_id === user.id,
+    })),
+  });
+}
+
 async function cron(req, res) {
   const out = await tick();
   res.status(200).json({ ok: true, ...out });
@@ -115,6 +144,7 @@ const ACTIONS = {
   state: { method: 'GET', mode: 'user', run: state },
   history: { method: 'GET', mode: 'user', run: history },
   predict: { method: 'POST', mode: 'user', run: predict },
+  leaderboard: { method: 'GET', mode: 'user', run: leaderboard },
   cron: { method: 'GET', mode: 'cron', run: cron },
 };
 
