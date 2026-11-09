@@ -31,5 +31,6 @@ async function req(path, opts = {}, retry = true) {
 
 export const getState = () => req('state');
 export const getHistory = () => req('history');
+export const getLeaderboard = (period) => req('leaderboard&period=' + period);
 export const predict = (round_id, direction) =>
   req('predict', { method: 'POST', body: JSON.stringify({ round_id, direction }) });

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { login, setInit, getState, getHistory, predict } from './api.js';
+import { login, setInit, getState, getHistory, getLeaderboard, predict } from './api.js';
 
 const DUR = [
   { sec: 300, label: '5m' },
@@ -76,11 +76,12 @@ export default function App() {
         {state && err && <p className="warn">{err}</p>}
         {state && tab === 'home' && <Home state={state} />}
         {state && tab === 'arena' && <Arena state={state} srv={srv} reload={load} />}
+        {state && tab === 'ranks' && <Leaderboard />}
         {state && tab === 'history' && <History />}
         <p className="foot">Free-to-play. AP and XP are virtual points with no cash value. Forecasts are game entries, not trades or investment advice.</p>
       </main>
       <nav>
-        {[['home', 'Home'], ['arena', 'Arena'], ['history', 'History']].map(([k, l]) => (
+        {[['home', 'Home'], ['arena', 'Arena'], ['ranks', 'Ranks'], ['history', 'History']].map(([k, l]) => (
           <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>
         ))}
       </nav>
@@ -257,5 +258,35 @@ function History() {
         </div>
       ))}
     </section>
+  );
+}
+
+function Leaderboard() {
+  const [period, setPeriod] = useState('day');
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    setData(null);
+    getLeaderboard(period).then(setData).catch(() => setData({ items: [] }));
+  }, [period]);
+  return (
+    <>
+      <div className="chips">
+        <button className={period === 'day' ? 'on' : ''} onClick={() => setPeriod('day')}>Today</button>
+        <button className={period === 'all' ? 'on' : ''} onClick={() => setPeriod('all')}>All time</button>
+      </div>
+      <p className="muted small">Ranked by AP earned from correct forecasts. Today resets at 00:00 UTC.</p>
+      {!data && <p className="muted center">Loading…</p>}
+      {data && !data.items.length && <p className="muted center">No winners yet. Be the first on the board.</p>}
+      {data && data.items.length > 0 && (
+        <section className="list">
+          {data.items.map((r) => (
+            <div className={'item' + (r.me ? ' me' : '')} key={r.pos + r.name}>
+              <div><span className="pos">#{r.pos}</span> <b>{r.name}</b>{r.me && <span className="muted"> (you)</span>}</div>
+              <div className="r"><b className="amber">{r.score} AP</b><span>{r.wins} wins</span></div>
+            </div>
+          ))}
+        </section>
+      )}
+    </>
   );
 }
